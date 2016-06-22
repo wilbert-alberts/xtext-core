@@ -70,8 +70,22 @@ public abstract class AbstractPartialContentAssistParser extends AbstractContent
 		} else {
 			String text = parseResult.getRootNode().getText();
 			String parseMe = text.substring(0, offset);
-			Collection<FollowElement> followElements = getFollowElements(parseMe, strict);
-			return followElements;
+			TokenSource tokenSource = createTokenSource(parseMe);
+			AbstractInternalContentAssistParser parser = createParser();
+			parser.setStrict(strict);
+			ObservableXtextTokenStream tokens = new ObservableXtextTokenStream(tokenSource, parser);
+			tokens.setInitialHiddenTokens(getInitialHiddenTokens());
+			parser.setTokenStream(tokens);
+			IUnorderedGroupHelper helper = getUnorderedGroupHelper().get();
+			parser.setUnorderedGroupHelper(helper);
+			helper.initializeWith(parser);
+			tokens.setListener(parser);
+			try {
+				EObject grammarElement = parseResult.getRootNode().getGrammarElement();
+				return Lists.newArrayList(getFollowElements(parser, (ParserRule) grammarElement));
+			} catch(InfiniteRecursion infinite) {
+				return Lists.newArrayList(parser.getFollowElements());
+			}
 		}
 	}
 
@@ -141,8 +155,7 @@ public abstract class AbstractPartialContentAssistParser extends AbstractContent
 		return null;
 	}
 
-	protected Collection<FollowElement> getFollowElements(
-			AbstractInternalContentAssistParser parser,
+	protected Collection<FollowElement> getFollowElements(AbstractInternalContentAssistParser parser,
 			AbstractElement entryPoint) {
 		String ruleName = getRuleName(entryPoint);
 		if (ruleName == null) {
@@ -157,6 +170,16 @@ public abstract class AbstractPartialContentAssistParser extends AbstractContent
 		if (ruleName == null) {
 			throw new IllegalStateException("entryPoint: " + entryPoint);
 		}
+		return getFollowElements(parser, ruleName);
+	}
+	
+	protected Collection<FollowElement> getFollowElements(AbstractInternalContentAssistParser parser,
+			ParserRule rule) {
+		String ruleName =  ruleNames.getAntlrRuleName(rule);
+		return getFollowElements(parser,  ruleName);
+	}
+
+	private Collection<FollowElement> getFollowElements(AbstractInternalContentAssistParser parser, String ruleName) {
 		try {
 			Method method = parser.getClass().getMethod(ruleName);
 			method.setAccessible(true);

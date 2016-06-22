@@ -27,6 +27,7 @@ import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.resource.impl.ResourceImpl;
 import org.eclipse.xtext.Constants;
+import org.eclipse.xtext.ParserRule;
 import org.eclipse.xtext.diagnostics.Severity;
 import org.eclipse.xtext.linking.ILinker;
 import org.eclipse.xtext.nodemodel.INode;
@@ -84,6 +85,8 @@ public class XtextResource extends ResourceImpl {
 	protected volatile boolean isUpdating = false;
 
 	private IParser parser;
+	
+	private ParserRule parserRule;
 
 	@Inject
 	private ILinker linker;
@@ -167,7 +170,7 @@ public class XtextResource extends ResourceImpl {
 	@Override
 	protected void doLoad(InputStream inputStream, Map<?, ?> options) throws IOException {
 		setEncodingFromOptions(options);
-		IParseResult result = parser.parse(createReader(inputStream));
+		IParseResult result = parser.parse(parserRule, createReader(inputStream));
 		updateInternalState(this.parseResult, result);
 	}
 	
@@ -250,7 +253,14 @@ public class XtextResource extends ResourceImpl {
 			isUpdating = true;
 			IParseResult oldParseResult = parseResult;
 			ReplaceRegion replaceRegion = new ReplaceRegion(new TextRegion(offset, replacedTextLength), newText);
-			IParseResult newParseResult = parser.reparse(oldParseResult, replaceRegion);
+			IParseResult newParseResult;
+			if (parserRule == null || parserRule == oldParseResult.getRootNode().getGrammarElement()) {
+				newParseResult = parser.reparse(oldParseResult, replaceRegion);
+			} else {
+				StringBuilder builder = new StringBuilder(oldParseResult.getRootNode().getText());
+				replaceRegion.applyTo(builder);
+				newParseResult = parser.parse(parserRule, new StringReader(builder.toString()));
+			}
 			updateInternalState(oldParseResult, newParseResult);
 		} finally {
 			isUpdating = false;
@@ -403,6 +413,14 @@ public class XtextResource extends ResourceImpl {
 			}
 		}
 		diagnostics.add(new XtextSyntaxDiagnostic(error));
+	}
+	
+	public ParserRule getParserRule() {
+		return parserRule;
+	}
+	
+	public void setParserRule(ParserRule parserRule) {
+		this.parserRule = parserRule;
 	}
 
 	public IParser getParser() {

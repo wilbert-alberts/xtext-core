@@ -215,8 +215,23 @@ public class PartialParsingHelper implements IPartialParsingHelper {
 
 	protected IParseResult fullyReparse(IParser parser, IParseResult previousParseResult, ReplaceRegion replaceRegion) {
 		unloadSemanticObject(previousParseResult.getRootASTElement());
+		ICompositeNode node = previousParseResult.getRootNode();
+		EObject ge1 = node.getGrammarElement();
+		ParserRule parserRule = null;
+		if (ge1 instanceof ParserRule) {
+			parserRule = (ParserRule) ge1;
+		} else if (ge1 instanceof Action) {
+			INode firstChild = node.getFirstChild();
+			EObject ge2 = firstChild.getGrammarElement();
+			if (ge2 instanceof ParserRule) {
+				parserRule = (ParserRule) ge2;
+			}
+		}
 		String reparseRegion = insertChangeIntoReplaceRegion(previousParseResult.getRootNode(), replaceRegion);
-		return parser.parse(new StringReader(reparseRegion));
+		if (parserRule == null) {
+			throw new IllegalStateException();
+		}
+		return parser.parse(parserRule, new StringReader(reparseRegion));
 	}
 
 	public void unloadNode(INode node) {

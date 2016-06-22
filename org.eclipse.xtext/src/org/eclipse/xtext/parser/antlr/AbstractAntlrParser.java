@@ -114,7 +114,8 @@ public abstract class AbstractAntlrParser extends AbstractParser {
 	@Override
 	public IParseResult parse(ParserRule rule, Reader reader) {
 		try {
-			IParseResult parseResult = parse(rule.getName(), new ANTLRReaderStream(reader));
+			String name = rule != null ? rule.getName() : getDefaultRuleName();
+			IParseResult parseResult = parse(name, new ANTLRReaderStream(reader));
 			return parseResult;
 		} catch (IOException e) {
 			throw new WrappedException(e);
