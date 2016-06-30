@@ -51,6 +51,7 @@ import io.typefox.lsapi.services.LanguageServer
 import io.typefox.lsapi.services.TextDocumentService
 import io.typefox.lsapi.services.WindowService
 import io.typefox.lsapi.services.WorkspaceService
+import java.util.Collections
 import java.util.List
 import java.util.concurrent.CompletableFuture
 import java.util.function.Consumer
@@ -67,11 +68,12 @@ import org.eclipse.xtext.ide.server.hover.HoverService
 import org.eclipse.xtext.ide.server.symbol.DocumentSymbolService
 import org.eclipse.xtext.ide.server.symbol.WorkspaceSymbolService
 import org.eclipse.xtext.resource.FileExtensionProvider
+import org.eclipse.xtext.resource.IMimeTypeProvider
 import org.eclipse.xtext.resource.IResourceServiceProvider
 import org.eclipse.xtext.validation.Issue
 
 import static io.typefox.lsapi.util.LsapiFactories.*
-import org.eclipse.xtext.resource.IMimeTypeProvider
+import org.eclipse.xtext.ide.server.formatting.FormattingService
 
 /**
  * @author Sven Efftinge - Initial contribution and API
@@ -114,6 +116,8 @@ import org.eclipse.xtext.resource.IMimeTypeProvider
 				resolveProvider = false
 				triggerCharacters = #["."]
 			]
+			documentFormattingProvider = true
+			documentRangeFormattingProvider = true
 		]
 		result.supportedLanguages = newArrayList()
 		for (serviceProvider : languagesRegistry.extensionToFactoryMap.values.filter(IResourceServiceProvider).toSet) {
@@ -387,6 +391,42 @@ import org.eclipse.xtext.resource.IMimeTypeProvider
 	
 	// end hover
 	
+	// formatting
+
+	override formatting(DocumentFormattingParams params) {
+		return requestManager.runRead[ cancelIndicator |
+			val uri = params.textDocument.uri.toUri
+			val resourceServiceProvider = uri.resourceServiceProvider
+			val formattingService = resourceServiceProvider?.get(FormattingService)
+			if (formattingService === null)
+				return Collections.emptyList
+
+			return workspaceManager.doRead(uri) [ document, resource |
+				return formattingService.format(document, resource, null)
+			]
+		]
+	}
+
+	// end formatting
+
+	// range formatting
+
+	override rangeFormatting(DocumentRangeFormattingParams params) {
+		return requestManager.runRead[ cancelIndicator |
+			val uri = params.textDocument.uri.toUri
+			val resourceServiceProvider = uri.resourceServiceProvider
+			val formattingService = resourceServiceProvider?.get(FormattingService)
+			if (formattingService === null)
+				return Collections.emptyList
+
+			return workspaceManager.doRead(uri) [ document, resource |
+				return formattingService.format(document, resource, params.range)
+			]
+		]
+	}
+
+	// end range formatting
+
 	override didChangeConfiguraton(DidChangeConfigurationParams params) {
 		throw new UnsupportedOperationException("TODO: auto-generated method stub")
 	}
@@ -413,14 +453,6 @@ import org.eclipse.xtext.resource.IMimeTypeProvider
 
 	override resolveCodeLens(CodeLens unresolved) {
 		return CompletableFuture.completedFuture(unresolved)
-	}
-
-	override formatting(DocumentFormattingParams params) {
-		throw new UnsupportedOperationException("TODO: auto-generated method stub")
-	}
-
-	override rangeFormatting(DocumentRangeFormattingParams params) {
-		throw new UnsupportedOperationException("TODO: auto-generated method stub")
 	}
 
 	override onTypeFormatting(DocumentOnTypeFormattingParams params) {

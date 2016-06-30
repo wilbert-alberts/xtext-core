@@ -12,6 +12,10 @@ import com.google.inject.Guice
 import com.google.inject.Inject
 import io.typefox.lsapi.CompletionItem
 import io.typefox.lsapi.Diagnostic
+import io.typefox.lsapi.DocumentFormattingParams
+import io.typefox.lsapi.DocumentFormattingParamsImpl
+import io.typefox.lsapi.DocumentRangeFormattingParams
+import io.typefox.lsapi.DocumentRangeFormattingParamsImpl
 import io.typefox.lsapi.Hover
 import io.typefox.lsapi.InitializeParamsImpl
 import io.typefox.lsapi.InitializeResult
@@ -20,8 +24,10 @@ import io.typefox.lsapi.MarkedString
 import io.typefox.lsapi.Position
 import io.typefox.lsapi.PublishDiagnosticsParams
 import io.typefox.lsapi.Range
+import io.typefox.lsapi.RangeImpl
 import io.typefox.lsapi.ReferenceContextImpl
 import io.typefox.lsapi.SymbolInformation
+import io.typefox.lsapi.TextDocumentIdentifierImpl
 import java.io.File
 import java.io.FileWriter
 import java.net.URI
@@ -34,6 +40,7 @@ import java.util.function.Consumer
 import org.eclipse.xtend.lib.annotations.Accessors
 import org.eclipse.xtend.lib.annotations.FinalFieldsConstructor
 import org.eclipse.xtext.LanguageInfo
+import org.eclipse.xtext.ide.server.Document
 import org.eclipse.xtext.ide.server.LanguageServerImpl
 import org.eclipse.xtext.ide.server.ServerModule
 import org.eclipse.xtext.ide.server.UriExtensions
@@ -46,6 +53,7 @@ import org.junit.Assert
 import org.junit.Before
 
 import static extension io.typefox.lsapi.util.LsapiFactories.*
+import io.typefox.lsapi.PositionImpl
 
 /**
  * @author Sven Efftinge - Initial contribution and API
@@ -237,6 +245,60 @@ abstract class AbstractLanguageServerTest implements Consumer<PublishDiagnostics
         assertEquals(expectedHover, actualHover)
     }
 
+    protected def void testFormatting((FormattingTestConfiguration)=>void configurator) {
+        val extension configuration = new FormattingTestConfiguration
+        configuration.filePath = 'MyModel.' + fileExtension
+        configurator.apply(configuration)
+
+        val fileUri = filePath -> model
+
+        initialize
+        open(fileUri, model)
+
+        val result = languageServer.formatting(newDocumentFormattingParams(fileUri.newTextDocumentIdentifier))
+
+        val actualDocument = new Document(1, model).applyChanges(result.get).contents
+        assertEquals(expectedDocument, actualDocument)
+    }
+
+    protected def void testRangeFormatting((RangeFormattingTestConfiguration)=>void configurator) {
+        val extension configuration = new RangeFormattingTestConfiguration
+        configuration.filePath = 'MyModel.' + fileExtension
+        configurator.apply(configuration)
+
+        val fileUri = filePath -> model
+
+        initialize
+        open(fileUri, model)
+
+        val result = languageServer.rangeFormatting(newDocumentRangeFormattingParams(fileUri.newTextDocumentIdentifier, startLine, startColumn, endLine, endColumn))
+
+        val actualDocument = new Document(1, model).applyChanges(result.get).contents
+        assertEquals(expectedDocument, actualDocument)
+    }
+
+    static def DocumentFormattingParams newDocumentFormattingParams(TextDocumentIdentifierImpl identifer) {
+		val params = new DocumentFormattingParamsImpl
+		params.textDocument = identifer
+		return params
+	}
+
+    static def DocumentRangeFormattingParams newDocumentRangeFormattingParams(TextDocumentIdentifierImpl identifer, int startLine, int startColumn, int endLine, int endColumn) {
+		val params = new DocumentRangeFormattingParamsImpl
+		params.textDocument = identifer
+		params.range = new RangeImpl => [
+			start = new PositionImpl => [
+				line = startLine
+				character = startColumn
+			]
+			end = new PositionImpl => [
+				line = endLine
+				character = endColumn
+			]
+		]
+		return params
+	}
+
     protected def void testDocumentSymbol((DocumentSymbolConfiguraiton)=>void configurator) {
         val extension configuration = new DocumentSymbolConfiguraiton
         configuration.filePath = 'MyModel.' + fileExtension
@@ -304,6 +366,20 @@ class HoverTestConfiguration extends TextDocumentPositionConfiguration {
 }
 
 @Accessors
+class FormattingTestConfiguration extends TextDocumentConfiguration {
+    String expectedDocument = ''
+}
+
+@Accessors
+class RangeFormattingTestConfiguration extends TextDocumentConfiguration {
+    String expectedDocument = ''
+    int startLine = 0
+    int startColumn = 0
+    int endLine = 0
+    int endColumn = 0
+}
+
+@Accessors
 class DocumentSymbolConfiguraiton extends TextDocumentConfiguration {
     String expectedSymbols = ''
 }
@@ -331,3 +407,4 @@ class TextDocumentConfiguration {
     String model = ''
     String filePath
 }
+

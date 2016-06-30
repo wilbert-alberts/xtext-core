@@ -19,6 +19,10 @@ import io.typefox.lsapi.CompletionList;
 import io.typefox.lsapi.Diagnostic;
 import io.typefox.lsapi.DidCloseTextDocumentParamsImpl;
 import io.typefox.lsapi.DidOpenTextDocumentParamsImpl;
+import io.typefox.lsapi.DocumentFormattingParams;
+import io.typefox.lsapi.DocumentFormattingParamsImpl;
+import io.typefox.lsapi.DocumentRangeFormattingParams;
+import io.typefox.lsapi.DocumentRangeFormattingParamsImpl;
 import io.typefox.lsapi.DocumentSymbolParamsImpl;
 import io.typefox.lsapi.Hover;
 import io.typefox.lsapi.InitializeParamsImpl;
@@ -26,12 +30,16 @@ import io.typefox.lsapi.InitializeResult;
 import io.typefox.lsapi.Location;
 import io.typefox.lsapi.MarkedString;
 import io.typefox.lsapi.Position;
+import io.typefox.lsapi.PositionImpl;
 import io.typefox.lsapi.PublishDiagnosticsParams;
 import io.typefox.lsapi.Range;
+import io.typefox.lsapi.RangeImpl;
 import io.typefox.lsapi.ReferenceContextImpl;
 import io.typefox.lsapi.ReferenceParamsImpl;
 import io.typefox.lsapi.SymbolInformation;
+import io.typefox.lsapi.TextDocumentIdentifierImpl;
 import io.typefox.lsapi.TextDocumentPositionParamsImpl;
+import io.typefox.lsapi.TextEdit;
 import io.typefox.lsapi.WorkspaceSymbolParamsImpl;
 import io.typefox.lsapi.services.TextDocumentService;
 import io.typefox.lsapi.util.LsapiFactories;
@@ -49,6 +57,7 @@ import org.eclipse.xtend.lib.annotations.Accessors;
 import org.eclipse.xtend.lib.annotations.FinalFieldsConstructor;
 import org.eclipse.xtend2.lib.StringConcatenation;
 import org.eclipse.xtext.LanguageInfo;
+import org.eclipse.xtext.ide.server.Document;
 import org.eclipse.xtext.ide.server.LanguageServerImpl;
 import org.eclipse.xtext.ide.server.ServerModule;
 import org.eclipse.xtext.ide.server.UriExtensions;
@@ -56,7 +65,9 @@ import org.eclipse.xtext.ide.server.concurrent.RequestManager;
 import org.eclipse.xtext.resource.IResourceServiceProvider;
 import org.eclipse.xtext.testing.DefinitionTestConfiguration;
 import org.eclipse.xtext.testing.DocumentSymbolConfiguraiton;
+import org.eclipse.xtext.testing.FormattingTestConfiguration;
 import org.eclipse.xtext.testing.HoverTestConfiguration;
+import org.eclipse.xtext.testing.RangeFormattingTestConfiguration;
 import org.eclipse.xtext.testing.ReferenceTestConfiguration;
 import org.eclipse.xtext.testing.TestCompletionConfiguration;
 import org.eclipse.xtext.testing.WorkspaceSymbolConfiguraiton;
@@ -67,6 +78,7 @@ import org.eclipse.xtext.xbase.lib.CollectionLiterals;
 import org.eclipse.xtext.xbase.lib.Exceptions;
 import org.eclipse.xtext.xbase.lib.Extension;
 import org.eclipse.xtext.xbase.lib.Functions.Function1;
+import org.eclipse.xtext.xbase.lib.ObjectExtensions;
 import org.eclipse.xtext.xbase.lib.Procedures.Procedure1;
 import org.eclipse.xtext.xbase.lib.Pure;
 import org.eclipse.xtext.xbase.lib.StringExtensions;
@@ -451,6 +463,95 @@ public abstract class AbstractLanguageServerTest implements Consumer<PublishDiag
     } catch (Throwable _e) {
       throw Exceptions.sneakyThrow(_e);
     }
+  }
+  
+  protected void testFormatting(final Procedure1<? super FormattingTestConfiguration> configurator) {
+    try {
+      @Extension
+      final FormattingTestConfiguration configuration = new FormattingTestConfiguration();
+      configuration.setFilePath(("MyModel." + this.fileExtension));
+      configurator.apply(configuration);
+      String _filePath = configuration.getFilePath();
+      String _model = configuration.getModel();
+      final String fileUri = this.operator_mappedTo(_filePath, _model);
+      this.initialize();
+      String _model_1 = configuration.getModel();
+      this.open(fileUri, _model_1);
+      TextDocumentIdentifierImpl _newTextDocumentIdentifier = LsapiFactories.newTextDocumentIdentifier(fileUri);
+      DocumentFormattingParams _newDocumentFormattingParams = AbstractLanguageServerTest.newDocumentFormattingParams(_newTextDocumentIdentifier);
+      final CompletableFuture<List<? extends TextEdit>> result = this.languageServer.formatting(_newDocumentFormattingParams);
+      String _model_2 = configuration.getModel();
+      Document _document = new Document(1, _model_2);
+      List<? extends TextEdit> _get = result.get();
+      Document _applyChanges = _document.applyChanges(_get);
+      final String actualDocument = _applyChanges.getContents();
+      String _expectedDocument = configuration.getExpectedDocument();
+      this.assertEquals(_expectedDocument, actualDocument);
+    } catch (Throwable _e) {
+      throw Exceptions.sneakyThrow(_e);
+    }
+  }
+  
+  protected void testRangeFormatting(final Procedure1<? super RangeFormattingTestConfiguration> configurator) {
+    try {
+      @Extension
+      final RangeFormattingTestConfiguration configuration = new RangeFormattingTestConfiguration();
+      configuration.setFilePath(("MyModel." + this.fileExtension));
+      configurator.apply(configuration);
+      String _filePath = configuration.getFilePath();
+      String _model = configuration.getModel();
+      final String fileUri = this.operator_mappedTo(_filePath, _model);
+      this.initialize();
+      String _model_1 = configuration.getModel();
+      this.open(fileUri, _model_1);
+      TextDocumentIdentifierImpl _newTextDocumentIdentifier = LsapiFactories.newTextDocumentIdentifier(fileUri);
+      int _startLine = configuration.getStartLine();
+      int _startColumn = configuration.getStartColumn();
+      int _endLine = configuration.getEndLine();
+      int _endColumn = configuration.getEndColumn();
+      DocumentRangeFormattingParams _newDocumentRangeFormattingParams = AbstractLanguageServerTest.newDocumentRangeFormattingParams(_newTextDocumentIdentifier, _startLine, _startColumn, _endLine, _endColumn);
+      final CompletableFuture<List<? extends TextEdit>> result = this.languageServer.rangeFormatting(_newDocumentRangeFormattingParams);
+      String _model_2 = configuration.getModel();
+      Document _document = new Document(1, _model_2);
+      List<? extends TextEdit> _get = result.get();
+      Document _applyChanges = _document.applyChanges(_get);
+      final String actualDocument = _applyChanges.getContents();
+      String _expectedDocument = configuration.getExpectedDocument();
+      this.assertEquals(_expectedDocument, actualDocument);
+    } catch (Throwable _e) {
+      throw Exceptions.sneakyThrow(_e);
+    }
+  }
+  
+  public static DocumentFormattingParams newDocumentFormattingParams(final TextDocumentIdentifierImpl identifer) {
+    final DocumentFormattingParamsImpl params = new DocumentFormattingParamsImpl();
+    params.setTextDocument(identifer);
+    return params;
+  }
+  
+  public static DocumentRangeFormattingParams newDocumentRangeFormattingParams(final TextDocumentIdentifierImpl identifer, final int startLine, final int startColumn, final int endLine, final int endColumn) {
+    final DocumentRangeFormattingParamsImpl params = new DocumentRangeFormattingParamsImpl();
+    params.setTextDocument(identifer);
+    RangeImpl _rangeImpl = new RangeImpl();
+    final Procedure1<RangeImpl> _function = (RangeImpl it) -> {
+      PositionImpl _positionImpl = new PositionImpl();
+      final Procedure1<PositionImpl> _function_1 = (PositionImpl it_1) -> {
+        it_1.setLine(startLine);
+        it_1.setCharacter(startColumn);
+      };
+      PositionImpl _doubleArrow = ObjectExtensions.<PositionImpl>operator_doubleArrow(_positionImpl, _function_1);
+      it.setStart(_doubleArrow);
+      PositionImpl _positionImpl_1 = new PositionImpl();
+      final Procedure1<PositionImpl> _function_2 = (PositionImpl it_1) -> {
+        it_1.setLine(endLine);
+        it_1.setCharacter(endColumn);
+      };
+      PositionImpl _doubleArrow_1 = ObjectExtensions.<PositionImpl>operator_doubleArrow(_positionImpl_1, _function_2);
+      it.setEnd(_doubleArrow_1);
+    };
+    RangeImpl _doubleArrow = ObjectExtensions.<RangeImpl>operator_doubleArrow(_rangeImpl, _function);
+    params.setRange(_doubleArrow);
+    return params;
   }
   
   protected void testDocumentSymbol(final Procedure1<? super DocumentSymbolConfiguraiton> configurator) {
